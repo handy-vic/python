@@ -1,4 +1,4 @@
-# Microservice for your entity-extraction functionality using FastAPI, which is a modern, fast (high-performance) web framework for building APIs.TXT TO CSV Microservice
+# Microservice for your entity-extraction functionality using FastAPI, Hosted with Docker.
 
 1. Install the following packages
 pip install fastapi uvicorn python-multipart spacy pandas
