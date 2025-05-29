@@ -1,35 +1,38 @@
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.responses import StreamingResponse
 import spacy
-import csv
-import os
+import pandas as pd
+import io
 
-def extract_entities_from_text(text):
-    nlp = spacy.load("en_core_web_sm")  # Load small English model
+app = FastAPI()
+nlp = spacy.load("en_core_web_sm")
+
+def extract_entities(text: str):
     doc = nlp(text)
-    entities = [(ent.text, ent.label_) for ent in doc.ents]
-    return entities
+    return [(ent.text, ent.label_) for ent in doc.ents]
 
-def txt_to_entities_csv(txt_file_path, csv_file_path):
-    if not os.path.isfile(txt_file_path):
-        print(f"Error: File '{txt_file_path}' not found.")
-        return
-
-    with open(txt_file_path, 'r', encoding='utf-8') as file:
-        text = file.read()
-
-    entities = extract_entities_from_text(text)
+@app.post("/extract-entities/")
+async def extract_entities_from_txt(file: UploadFile = File(...)):
+    if not file.filename.endswith('.txt'):
+        raise HTTPException(status_code=400, detail="Only .txt files are supported.")
+    
+    content = await file.read()
+    text = content.decode("utf-8")
+    entities = extract_entities(text)
 
     if not entities:
-        print("No entities found in the text.")
-        return
+        raise HTTPException(status_code=404, detail="No entities found.")
 
-    with open(csv_file_path, 'w', newline='', encoding='utf-8') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(['Entity', 'Label'])  # Header
-        writer.writerows(entities)
+    # Convert to DataFrame
+    df = pd.DataFrame(entities, columns=["Entity", "Label"])
+    
+    # Convert DataFrame to CSV in-memory
+    output = io.StringIO()
+    df.to_csv(output, index=False)
+    output.seek(0)
 
-    print(f"Entities written to '{csv_file_path}'.")
-
-if __name__ == "__main__":
-    txt_file = "input.txt"      # Replace with your actual input file
-    csv_file = "output.csv"     # Output CSV file
-    txt_to_entities_csv(txt_file, csv_file)
+    return StreamingResponse(
+        output,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=entities.csv"}
+    )
